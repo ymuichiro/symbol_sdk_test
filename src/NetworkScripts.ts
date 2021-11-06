@@ -25,9 +25,30 @@ export default class NetworkScripts {
     const transactionFees = await networkHttp.getTransactionFees().pipe(timeout(TIME_OUT)).toPromise().catch(_ => new TransactionFees(0, 0, 0, 0, 0));
     return {
       node, transactionFees,
-      type: networkType === NetworkType.TEST_NET ? "TEST_NET" : "MAIN_NET",
+      type: this.getStrNwType(networkType),
       generationHash: network.generationHashSeed,
       currencyMosaicId: undefinedPipe(chain.currencyMosaicId, e => e.replace('0x', '').replace(/'/g, '')),
+    }
+  }
+
+  /** 文字列型NetworktypeをEnum型に変換する */
+  static getStrNwType(networkType: NetworkType): AppNetworkType {
+    if (networkType === NetworkType.MAIN_NET) {
+      return "MAIN_NET";
+    } else {
+      return "TEST_NET";
+    }
+  }
+
+  /** 文字列型NetworktypeをEnum型に変換する */
+  static getEnumNwType(networkType: AppNetworkType): NetworkType {
+    switch (networkType) {
+      case "MAIN_NET":
+        return NetworkType.MAIN_NET;
+      case "TEST_NET":
+        return NetworkType.TEST_NET;
+      default:
+        return NetworkType.TEST_NET;
     }
   }
 }

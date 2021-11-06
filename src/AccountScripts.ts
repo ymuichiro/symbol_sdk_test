@@ -1,7 +1,7 @@
 import { ExtendedKey, MnemonicPassPhrase, Network, Wallet } from "symbol-hd-wallets";
-import { Account, AccountHttp, Address, MosaicService, NetworkType, RepositoryFactoryHttp } from "symbol-sdk";
+import { Account, AccountHttp, Address } from "symbol-sdk";
 import MosaicScripts from "./MosaicScripts";
-import { NetworkStructure } from "./NetworkScripts";
+import NetworkScripts, { NetworkStructure } from "./NetworkScripts";
 import SecureStorageScripts from "./SecureStrageScripts";
 
 export interface AccountStructure {
@@ -20,29 +20,30 @@ export default class AccountScripts {
   static NETWORK = Network.SYMBOL;
   static SECURE_STRAGE_KEY = "ACCOUNT_KEY";
 
-
   /**
    * ニーモニックにより新規アカウントを生成する
    * TODO wallet path を判断する為、現状の子アドレスの高さを以下関数へ渡す事
    */
-  static createFromMnemonic(mnemonic: string, password: string, network: NetworkType): AccountStructure {
+  static createFromMnemonic(mnemonic: string, password: string, network: NetworkStructure): AccountStructure {
     const extendedKey = ExtendedKey.createFromSeed(new MnemonicPassPhrase(mnemonic).toSeed(password).toString("hex"), this.NETWORK);
     const privateKey = new Wallet(extendedKey).getChildAccountPrivateKey(Wallet.DEFAULT_WALLET_PATH);
-    return this.accountToAccountStructure(Account.createFromPrivateKey(privateKey, network), Wallet.DEFAULT_WALLET_PATH, network);
+    const nwType = NetworkScripts.getEnumNwType(network.type);
+    return this._accountToAccountStructure(Account.createFromPrivateKey(privateKey, nwType), Wallet.DEFAULT_WALLET_PATH, network);
   }
 
   /** 秘密鍵よりアカウントを作成する */
-  static createFromPrivateKey(privateKey: string, network: NetworkType): AccountStructure {
-    return this.accountToAccountStructure(Account.createFromPrivateKey(privateKey, network), Wallet.DEFAULT_WALLET_PATH, network);
+  static createFromPrivateKey(privateKey: string, network: NetworkStructure): AccountStructure {
+    const nwType = NetworkScripts.getEnumNwType(network.type);
+    return this._accountToAccountStructure(Account.createFromPrivateKey(privateKey, nwType), Wallet.DEFAULT_WALLET_PATH, network);
   }
 
   /** Redux向けのアカウントオブジェクトを生成する */
-  static accountToAccountStructure(account: Account, path: string, nw: NetworkType): AccountStructure {
+  static _accountToAccountStructure(account: Account, path: string, { type }: NetworkStructure): AccountStructure {
     return {
       publicKey: account.address.pretty(),
       privateKey: account.privateKey,
       path: path,
-      network: nw === NetworkType.MAIN_NET ? "MAIN_NET" : "TEST_NET",
+      network: type,
     }
   }
 
