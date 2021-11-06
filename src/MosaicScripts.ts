@@ -5,6 +5,7 @@ import { NetworkStructure } from "./NetworkScripts";
 export interface MosaicStructure {
   mosaicId: string;
   mosaicName: string;
+  divisibility: number;
 }
 
 const TIME_OUT = 5000;
@@ -20,6 +21,7 @@ export default class MosaicScripts {
     return {
       mosaicId: info.id.toHex(),
       mosaicName: mosaicName && mosaicName.names && mosaicName.names.length > 0 ? mosaicName.names[0].name : info.id.toHex(),
+      divisibility: info.divisibility,
     };
   }
 }

@@ -1,10 +1,13 @@
+import { timeout } from "rxjs/operators";
 import { ExtendedKey, MnemonicPassPhrase, Network, Wallet } from "symbol-hd-wallets";
-import { Account, AccountHttp, Address } from "symbol-sdk";
+import { Account, AccountHttp, AccountInfo, Address, RepositoryFactoryHttp } from "symbol-sdk";
 import MosaicScripts from "./MosaicScripts";
 import NetworkScripts, { NetworkStructure } from "./NetworkScripts";
 import SecureStorageScripts from "./SecureStrageScripts";
 
 export interface AccountStructure {
+  /** アドレス */
+  address: string;
   /** 公開鍵 */
   publicKey: string;
   /** 秘密鍵 */
@@ -14,6 +17,8 @@ export interface AccountStructure {
   /** 接続先NETWORK */
   network: "TEST_NET" | "MAIN_NET";
 }
+
+const TIME_OUT = 5000;
 
 export default class AccountScripts {
 
@@ -37,15 +42,25 @@ export default class AccountScripts {
     return this._accountToAccountStructure(Account.createFromPrivateKey(privateKey, nwType), Wallet.DEFAULT_WALLET_PATH, network);
   }
 
+  /** アカウントの情報を取得する */
+  static async createAccountInfoFromAddress(rawAddress: string, network: NetworkStructure): Promise<AccountInfo> {
+    const address = Address.createFromRawAddress(rawAddress);
+    const accountRepo = new RepositoryFactoryHttp(network.node).createAccountRepository();
+    return await accountRepo.getAccountInfo(address).pipe(timeout(TIME_OUT)).toPromise();
+  }
+
   /** Redux向けのアカウントオブジェクトを生成する */
   static _accountToAccountStructure(account: Account, path: string, { type }: NetworkStructure): AccountStructure {
     return {
-      publicKey: account.address.pretty(),
+      address: account.address.pretty(),
+      publicKey: account.publicKey,
       privateKey: account.privateKey,
       path: path,
       network: type,
     }
   }
+
+
 
   /** SecureStrageのアカウント一覧を取得する */
   static async getSecureStrageAccounts(): Promise<string | null> {
@@ -68,15 +83,16 @@ export default class AccountScripts {
     await SecureStorageScripts.set(this.SECURE_STRAGE_KEY, JSON.stringify(accounts));
   }
 
-  /** 指定公開鍵に属する残高情報を取得する　getBalanceAndOwnedMosaicsFromAddress */
-  static async getBalanceFromPublicKey(publicKey: string, network: NetworkStructure) {
-    // TODO NWを制御するクラスも別途必要
-    const { mosaics } = await new AccountHttp("http://ngl-dual-101.testnet.symboldev.network:3000")
-      .getAccountInfo(Address.createFromRawAddress(publicKey)).toPromise();
-    const ownedMosaics = await Promise.all(mosaics.map(async (m) => {
-      const mosaicInfo = await MosaicScripts.getMosaicStructureFromMosaicId(m.id.toHex(), network);
-      return { ...mosaicInfo, amount: m.amount.compact() };
+  /** 指定公開鍵に属する残高情報を取得する */
+  static async getBalanceFromAddress(address: string, network: NetworkStructure): Promise<{ mosaicId: string, amount: number, name: string }[]> {
+    const accountInfo = await AccountScripts.createAccountInfoFromAddress(address, network);
+    return await Promise.all(accountInfo.mosaics.map(async (mosaic) => {
+      const mosaicStructure = await MosaicScripts.getMosaicStructureFromMosaicId(mosaic.id.toHex(), network);
+      return {
+        mosaicId: mosaic.id.toHex(),
+        amount: mosaic.amount.compact() / Math.pow(10, mosaicStructure.divisibility),
+        name: mosaicStructure.mosaicName,
+      };
     }))
-
   }
 }
