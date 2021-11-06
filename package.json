@@ -1,0 +1,11 @@
+{
+  "name": "symbol_sdk_test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "rxjs": "6.6.7",
+    "symbol-sdk": "^1.0.2",
+    "typescript": "^4.4.4"
+  }
+}
