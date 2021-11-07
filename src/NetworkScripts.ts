@@ -7,7 +7,12 @@ export interface NetworkStructure {
   type: AppNetworkType;
   node: string;
   transactionFees: TransactionFees;
-  generationHash?: string;
+  // ネメシスブロックのHash算出 都度呼び出す必要は無し
+  generationHash: string;
+  // Transaction deadline向け値 都度呼び出す必要は無し
+  epochAdjustment: number;
+  // 動的手数料の制御
+  defaultDynamicFeeMultiplier: number;
   currencyMosaicId?: string;
 }
 
@@ -26,8 +31,10 @@ export default class NetworkScripts {
     return {
       node, transactionFees,
       type: this.getStrNwType(networkType),
-      generationHash: network.generationHashSeed,
+      generationHash: network.generationHashSeed!,
       currencyMosaicId: undefinedPipe(chain.currencyMosaicId, e => e.replace('0x', '').replace(/'/g, '')),
+      epochAdjustment: network.epochAdjustment === undefined ? 0 : parseInt(network.epochAdjustment),
+      defaultDynamicFeeMultiplier: undefinedPipe(chain.defaultDynamicFeeMultiplier, x => Number(x)) || 1000,
     }
   }
 

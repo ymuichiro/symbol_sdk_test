@@ -1,6 +1,6 @@
 import { timeout } from "rxjs/operators";
 import { ExtendedKey, MnemonicPassPhrase, Network, Wallet } from "symbol-hd-wallets";
-import { Account, AccountHttp, AccountInfo, Address, RepositoryFactoryHttp } from "symbol-sdk";
+import { Account, AccountInfo, Address, NetworkType, RepositoryFactoryHttp } from "symbol-sdk";
 import MosaicScripts from "./MosaicScripts";
 import NetworkScripts, { NetworkStructure } from "./NetworkScripts";
 import SecureStorageScripts from "./SecureStrageScripts";
@@ -18,13 +18,27 @@ export interface AccountStructure {
   network: "TEST_NET" | "MAIN_NET";
 }
 
+export interface AccountMosaicBalance {
+  mosaicId: string;
+  amount: number;
+  name: string;
+}
+
 const TIME_OUT = 5000;
+
 
 export default class AccountScripts {
 
   static NETWORK = Network.SYMBOL;
   static SECURE_STRAGE_KEY = "ACCOUNT_KEY";
 
+  /**
+   *
+   */
+  static generateNewAccount() {
+    Account.generateNewAccount(NetworkType.TEST_NET);
+
+  }
   /**
    * ニーモニックにより新規アカウントを生成する
    * TODO wallet path を判断する為、現状の子アドレスの高さを以下関数へ渡す事
@@ -84,7 +98,7 @@ export default class AccountScripts {
   }
 
   /** 指定公開鍵に属する残高情報を取得する */
-  static async getBalanceFromAddress(address: string, network: NetworkStructure): Promise<{ mosaicId: string, amount: number, name: string }[]> {
+  static async getBalanceFromAddress(address: string, network: NetworkStructure): Promise<AccountMosaicBalance[]> {
     const accountInfo = await AccountScripts.createAccountInfoFromAddress(address, network);
     return await Promise.all(accountInfo.mosaics.map(async (mosaic) => {
       const mosaicStructure = await MosaicScripts.getMosaicStructureFromMosaicId(mosaic.id.toHex(), network);
