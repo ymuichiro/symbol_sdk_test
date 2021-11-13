@@ -4,6 +4,8 @@ import { Account, AccountInfo, Address, NetworkType, RepositoryFactoryHttp } fro
 import MosaicScripts from "./MosaicScripts";
 import NetworkScripts, { NetworkStructure } from "./NetworkScripts";
 import SecureStorageScripts from "./SecureStrageScripts";
+import { QRCodeGenerator } from "symbol-qr-library";
+
 
 export interface AccountStructure {
   /** アドレス */
@@ -26,28 +28,37 @@ export interface AccountMosaicBalance {
 
 const TIME_OUT = 5000;
 
+class CommonLogics {
+  static generatePrivateKeyFromMnemonic(mnemonic: string, password: string, path: string, nw: Network): string {
+    const extendedKey = ExtendedKey.createFromSeed(new MnemonicPassPhrase(mnemonic).toSeed(password).toString("hex"), nw);
+    return new Wallet(extendedKey).getChildAccountPrivateKey(path);
+  }
+  static generateWalletPath(index: number): string {
+    return `m/44\'/4343\'/${index.toString()}\'/0\'/0\'`;
+  }
+}
 
 export default class AccountScripts {
 
   static NETWORK = Network.SYMBOL;
   static SECURE_STRAGE_KEY = "ACCOUNT_KEY";
 
-  /**
-   *
-   */
-  static generateNewAccount() {
-    Account.generateNewAccount(NetworkType.TEST_NET);
-
-  }
-  /**
-   * ニーモニックにより新規アカウントを生成する
-   * TODO wallet path を判断する為、現状の子アドレスの高さを以下関数へ渡す事
-   */
-  static createFromMnemonic(mnemonic: string, password: string, network: NetworkStructure): AccountStructure {
-    const extendedKey = ExtendedKey.createFromSeed(new MnemonicPassPhrase(mnemonic).toSeed(password).toString("hex"), this.NETWORK);
-    const privateKey = new Wallet(extendedKey).getChildAccountPrivateKey(Wallet.DEFAULT_WALLET_PATH);
+  /** ニーモニックによりウォレットのルートアカウントを読み込む */
+  static createRootAccountFromMnemonic(mnemonic: string, password: string, network: NetworkStructure): AccountStructure {
+    const walletPath = CommonLogics.generateWalletPath(0);
+    const privateKey = CommonLogics.generatePrivateKeyFromMnemonic(mnemonic, password, walletPath, this.NETWORK);
     const nwType = NetworkScripts.getEnumNwType(network.type);
-    return this._accountToAccountStructure(Account.createFromPrivateKey(privateKey, nwType), Wallet.DEFAULT_WALLET_PATH, network);
+    const account = Account.createFromPrivateKey(privateKey, nwType);
+    return this._accountToAccountStructure(account, walletPath, network);
+  }
+
+  /** ニーモニックとPATH向けのindex値によりアカウントを読み込む */
+  static createAccountFromMnemonicAndIndex(mnemonic: string, password: string, index: number, network: NetworkStructure): AccountStructure {
+    const walletPath = CommonLogics.generateWalletPath(index);
+    const privateKey = CommonLogics.generatePrivateKeyFromMnemonic(mnemonic, password, walletPath, this.NETWORK);
+    const nwType = NetworkScripts.getEnumNwType(network.type);
+    const account = Account.createFromPrivateKey(privateKey, nwType);
+    return this._accountToAccountStructure(account, walletPath, network);
   }
 
   /** 秘密鍵よりアカウントを作成する */
@@ -74,8 +85,6 @@ export default class AccountScripts {
     }
   }
 
-
-
   /** SecureStrageのアカウント一覧を取得する */
   static async getSecureStrageAccounts(): Promise<string | null> {
     return await SecureStorageScripts.get(this.SECURE_STRAGE_KEY);
@@ -99,14 +108,31 @@ export default class AccountScripts {
 
   /** 指定公開鍵に属する残高情報を取得する */
   static async getBalanceFromAddress(address: string, network: NetworkStructure): Promise<AccountMosaicBalance[]> {
-    const accountInfo = await AccountScripts.createAccountInfoFromAddress(address, network);
-    return await Promise.all(accountInfo.mosaics.map(async (mosaic) => {
-      const mosaicStructure = await MosaicScripts.getMosaicStructureFromMosaicId(mosaic.id.toHex(), network);
-      return {
-        mosaicId: mosaic.id.toHex(),
-        amount: mosaic.amount.compact() / Math.pow(10, mosaicStructure.divisibility),
-        name: mosaicStructure.mosaicName,
-      };
-    }))
+    try {
+      const accountInfo = await AccountScripts.createAccountInfoFromAddress(address, network);
+      return await Promise.all(accountInfo.mosaics.map(async (mosaic) => {
+        const mosaicStructure = await MosaicScripts.getMosaicStructureFromMosaicId(mosaic.id.toHex(), network);
+        return {
+          mosaicId: mosaic.id.toHex(),
+          amount: mosaic.amount.compact() / Math.pow(10, mosaicStructure.divisibility),
+          name: mosaicStructure.mosaicName,
+        };
+      }))
+    } catch (e) {
+      return [
+        {
+          mosaicId: "091F837E059AE13C",
+          amount: 0,
+          name: "symbol.xym",
+        }
+      ]
+    }
+  }
+
+  /** アドレスのQRを発行する */
+  static async getAddressQRFromRowAddress(name: string, rawAddress: string, network: NetworkStructure): Promise<string> {
+    const nwType = NetworkScripts.getEnumNwType(network.type);
+    const qrCode = QRCodeGenerator.createExportAddress(name, rawAddress, nwType, network.generationHash);
+    return await qrCode.toBase64().toPromise();
   }
 }

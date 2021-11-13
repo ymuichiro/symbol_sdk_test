@@ -23,6 +23,11 @@ const undefinedPipe: <T, K>(v: T | undefined, f: (x: T) => K) => K | undefined =
 
 export default class NetworkScripts {
 
+  /** ノードの候補を返す */
+  static async getNodeList(): Promise<void> {
+
+  }
+
   /** ノードアドレスよりNetworkStructureを構成する */
   static async getNetworkStructureFromNode(node: string, networkType: NetworkType): Promise<NetworkStructure> {
     const networkHttp = new NetworkHttp(node);

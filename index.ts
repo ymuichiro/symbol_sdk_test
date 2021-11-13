@@ -13,13 +13,7 @@ const divider = (message: string) => console.log("=".repeat(20), message, "=".re
 (async () => {
   const mnemonic = MnemonicPassPhrase.createRandom(); // hd-wallet向け
   const seed = mnemonic.toSeed("password").toString("hex"); // passphraseにて暗号化(root seed)
-  const xkey = ExtendedKey.createFromSeed(seed, Network.SYMBOL);
-  const wallet = new Wallet(xkey);
-  const masterAccount = wallet.getAccountPrivateKey();
-  const defaultAccount = wallet.getChildAccountPrivateKey(Wallet.DEFAULT_WALLET_PATH);
-  console.log(mnemonic);
-  // console.log(masterAccount);
-  // console.log(defaultAccount);
+  console.log(mnemonic, seed);
 });
 
 // 過去作成したニーモニックよりアカウントを復元し、保有モザイクを確認する
@@ -27,8 +21,8 @@ const divider = (message: string) => console.log("=".repeat(20), message, "=".re
   const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
   const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
   // Accountの作成
-  const account1 = AccountScripts.createFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
-  const account2 = AccountScripts.createFromMnemonic(SAMPLE2.MNEMONIC, "password", nw);
+  const account1 = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
+  const account2 = AccountScripts.createRootAccountFromMnemonic(SAMPLE2.MNEMONIC, "password", nw);
   console.log(account1.address);
   console.log(account2.address);
   // Account情報の取得
@@ -42,6 +36,42 @@ const divider = (message: string) => console.log("=".repeat(20), message, "=".re
   console.log(tx.transactionInfo?.id);
   const result = await TransactionScripts.signTransaction(account1, tx, nw);
   console.log(result);
+  // 受取用QRの発行
+});
+
+// ニーモニックに子アカウントの作成
+(async () => {
+  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
+  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
+  const account1 = AccountScripts.createAccountFromMnemonicAndIndex(SAMPLE1.MNEMONIC, "password", 1, nw);
+  const account2 = AccountScripts.createRootAccountFromMnemonic(SAMPLE2.MNEMONIC, "password", nw);
+  console.log(account1.address);
+  const [account2Mosaic] = await AccountScripts.getBalanceFromAddress(account2.address, nw);
+  const mosaic = await MosaicScripts.getMosaicStructureFromMosaicId(account2Mosaic.mosaicId, nw);
+  const tx = await TransactionScripts.createTransaction(account1.address, [{ mosaic, amount: 1 }], "test", nw);
+  const result = await TransactionScripts.signTransaction(account2, tx, nw);
+  console.log(result);
+  const [account1Mosaic] = await AccountScripts.getBalanceFromAddress(account1.address, nw);
+  console.log(account1Mosaic);
+});
+
+// TODO AccountInfoがERRORの場合、落とさずにデフォルト値を返すスクリプトを
+(async () => {
+  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
+  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
+  // Accountの作成
+  const account1 = AccountScripts.createAccountFromMnemonicAndIndex(SAMPLE1.MNEMONIC, "password", 2, nw);
+  const [account1Info] = await AccountScripts.getBalanceFromAddress(account1.address, nw);
+  console.log(account1Info);
+});
+
+// QRコードの出力
+(async () => {
+  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
+  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
+  const account1 = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
+  const qr = await AccountScripts.getAddressQRFromRowAddress("Symbol", account1.address, nw);
+  console.log(qr);
 })();
 
 
