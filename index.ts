@@ -1,77 +1,69 @@
+import { pipe } from "rxjs";
 import { timeout } from "rxjs/operators";
-import { ExtendedKey, MnemonicPassPhrase, Network, Wallet } from "symbol-hd-wallets";
-import { Account, Address, Mosaic, MosaicId, NamespaceHttp, NetworkHttp, NetworkType, RepositoryFactoryHttp } from "symbol-sdk";
+import { Account, Address, ChainHttp, Deadline, Listener, Mosaic, MosaicId, NetworkCurrencies, NetworkHttp, NetworkType, RepositoryFactoryHttp, TransactionMapping, TransferTransaction, UInt64 } from "symbol-sdk";
+import { TransactionURI } from "symbol-uri-scheme";
 import AccountScripts from "./src/AccountScripts";
 import MosaicScripts from "./src/MosaicScripts";
 import NetworkScripts from "./src/NetworkScripts";
 import TransactionScripts from "./src/TransactionScripts";
-import { SAMPLE1, SAMPLE2 } from "./test_data";
+import { SAMPLE1 } from "./test_data";
 
-const divider = (message: string) => console.log("=".repeat(20), message, "=".repeat(20));
+/*
+ 基本の流れ
+ - 受取用Txを発行する
+ - 相手にQRでTx発行データを受け渡す（URI）
+   - この際にModalで受取り状況監視を開始（キャンセルも可能）
+   - Txを相手側で復元する
+   - 支払う
+   */
 
-// 新規アカウントを発行する
+
+/** 受取用のTxを発行する */
 (async () => {
-  const mnemonic = MnemonicPassPhrase.createRandom(); // hd-wallet向け
-  const seed = mnemonic.toSeed("password").toString("hex"); // passphraseにて暗号化(root seed)
-  console.log(mnemonic, seed);
+  // const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
+  const nodeUrl = "http://ngl-dual-101.testnet.symboldev.network:3000";
+  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
+  // const account1 = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
+  const account = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
+  const mosaics = await AccountScripts.getBalanceFromAddress(account.address, nw);
+  const mosaic = await MosaicScripts.getMosaicStructureFromMosaicId(mosaics[0].mosaicId, nw);
+
+  const tx = (await TransactionScripts.createTransaction(
+    account.address,
+    [{ mosaic: mosaic, amount: 1 }],
+    "tset",
+    nw,
+  )).serialize();
+
+  const uri = new TransactionURI(tx, TransactionMapping.createFromPayload, nw.generationHash, nw.node);
+  console.log(uri.build());
+
 });
 
-// 過去作成したニーモニックよりアカウントを復元し、保有モザイクを確認する
+//　トランザクションURIをQRコードに変換する
+(async () => {
+  const u = "web+symbol://transaction?data=B500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000198544180841E00000000003FDECBB40400000098FCE18C2FDA2116387768741C82BA5B70E4363177B9448B05000100000000003CE19A057E831F0940420F00000000000074736574&generationHash=3B5E1FA6445653C971A50687E75E6D09FB30481055E3990C84B25E9222DC1155&nodeUrl=http://ngl-dual-101.testnet.symboldev.network:3000";
+  const uri = TransactionURI.fromURI(u, TransactionMapping.createFromPayload)
+  const tx = uri.toTransaction();
+  console.log(tx.toJSON().transaction.mosaics);
+});
+
+// 自身宛の着金をウォッチする →　監視中の相手の情報を最後にUI側へ表示すればOK
 (async () => {
   const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
   const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
-  // Accountの作成
-  const account1 = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
-  const account2 = AccountScripts.createRootAccountFromMnemonic(SAMPLE2.MNEMONIC, "password", nw);
-  console.log(account1.address);
-  console.log(account2.address);
-  // Account情報の取得
-  const [account1Info] = await AccountScripts.getBalanceFromAddress(account1.address, nw);
-  const [account2Info] = await AccountScripts.getBalanceFromAddress(account2.address, nw);
-  console.log(JSON.stringify(account1Info));
-  console.log(JSON.stringify(account2Info));
-  // ACCOUNT1 -> 2への送金
-  const mosaic = await MosaicScripts.getMosaicStructureFromMosaicId(account1Info.mosaicId, nw);
-  const tx = await TransactionScripts.createTransaction(account2.address, [{ mosaic, amount: 1 }], "test", nw);
-  console.log(tx.transactionInfo?.id);
-  const result = await TransactionScripts.signTransaction(account1, tx, nw);
-  console.log(result);
-  // 受取用QRの発行
-});
+  const account = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
+  const repositoryFactory = new RepositoryFactoryHttp(nodeUrl);
+  const listerner = repositoryFactory.createListener();
+  listerner.open().then(() => {
+    listerner.newBlock(); // セッションアウト防止用
+    listerner
+      .confirmed(Address.createFromRawAddress(account.address))
+      .subscribe(tx => {
+        console.log("受信", tx);
+      })
+  });
 
-// ニーモニックに子アカウントの作成
-(async () => {
-  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
-  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
-  const account1 = AccountScripts.createAccountFromMnemonicAndIndex(SAMPLE1.MNEMONIC, "password", 1, nw);
-  const account2 = AccountScripts.createRootAccountFromMnemonic(SAMPLE2.MNEMONIC, "password", nw);
-  console.log(account1.address);
-  const [account2Mosaic] = await AccountScripts.getBalanceFromAddress(account2.address, nw);
-  const mosaic = await MosaicScripts.getMosaicStructureFromMosaicId(account2Mosaic.mosaicId, nw);
-  const tx = await TransactionScripts.createTransaction(account1.address, [{ mosaic, amount: 1 }], "test", nw);
-  const result = await TransactionScripts.signTransaction(account2, tx, nw);
-  console.log(result);
-  const [account1Mosaic] = await AccountScripts.getBalanceFromAddress(account1.address, nw);
-  console.log(account1Mosaic);
-});
-
-// TODO AccountInfoがERRORの場合、落とさずにデフォルト値を返すスクリプトを
-(async () => {
-  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
-  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
-  // Accountの作成
-  const account1 = AccountScripts.createAccountFromMnemonicAndIndex(SAMPLE1.MNEMONIC, "password", 2, nw);
-  const [account1Info] = await AccountScripts.getBalanceFromAddress(account1.address, nw);
-  console.log(account1Info);
-});
-
-// QRコードの出力
-(async () => {
-  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
-  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
-  const account1 = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
-  const qr = await AccountScripts.getAddressQRFromRowAddress("Symbol", account1.address, nw);
-  console.log(qr);
 })();
 
 

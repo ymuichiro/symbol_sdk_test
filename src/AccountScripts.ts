@@ -1,6 +1,6 @@
 import { timeout } from "rxjs/operators";
 import { ExtendedKey, MnemonicPassPhrase, Network, Wallet } from "symbol-hd-wallets";
-import { Account, AccountInfo, Address, NetworkType, RepositoryFactoryHttp } from "symbol-sdk";
+import { Account, AccountInfo, Address, MosaicId, NetworkType, RepositoryFactoryHttp } from "symbol-sdk";
 import MosaicScripts from "./MosaicScripts";
 import NetworkScripts, { NetworkStructure } from "./NetworkScripts";
 import SecureStorageScripts from "./SecureStrageScripts";
@@ -121,9 +121,9 @@ export default class AccountScripts {
     } catch (e) {
       return [
         {
-          mosaicId: "091F837E059AE13C",
+          mosaicId: network.currencyMosaicId || "",
           amount: 0,
-          name: "symbol.xym",
+          name: network.currencyMosaicId || "",
         }
       ]
     }
