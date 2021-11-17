@@ -135,4 +135,23 @@ export default class AccountScripts {
     const qrCode = QRCodeGenerator.createExportAddress(name, rawAddress, nwType, network.generationHash);
     return await qrCode.toBase64().toPromise();
   }
+
+  /** 自分宛の入金を監視する */
+  static async watchTransactionToMe(rawAddress: string, network: NetworkStructure): Promise<void> {
+    // 返り値として取得したTxの返却と、停止用関数を返す(複雑になるためNG)
+    // もしくはStateの更新を含む関数を受け取り、この関数の内部で受け取った関数を評価し続ける（検証）
+    const address = Address.createFromRawAddress(rawAddress);
+    const repositoryFactory = new RepositoryFactoryHttp(network.node);
+    const listerner = repositoryFactory.createListener();
+    listerner.open().then(() => {
+      listerner.newBlock(); // セッションアウト防止用
+      listerner
+        .confirmed(address)
+        .subscribe(tx => {
+          console.log("受信", tx);
+          // 受け取ったStateを更新し続ける
+          // UI側では受け取ったトランザクションのステータスを表示し続ける（増えていく）
+        })
+    })
+  }
 }

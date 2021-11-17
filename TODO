@@ -21,3 +21,6 @@ Txを元にSocket発行　→　Waiting画面
 終了処理
 
 相手のウォレット生成直後は情報を読み取れるのか？
+
+バックグラウンドプロセスはこれ
+https://note.com/umotion/n/n74551da695f9#EUIqW

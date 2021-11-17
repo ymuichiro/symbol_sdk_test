@@ -50,6 +50,7 @@ import { SAMPLE1 } from "./test_data";
 
 // 自身宛の着金をウォッチする →　監視中の相手の情報を最後にUI側へ表示すればOK
 (async () => {
+
   const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
   const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
   const account = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
@@ -64,6 +65,34 @@ import { SAMPLE1 } from "./test_data";
       })
   });
 
+});
+
+// 定期的に自分宛の新着入金を取得する（バックグラウンドプロセス向け）
+// 自分宛の入金を直近n件取得し、その中身が異なる場合通知する
+(async () => {
+  const nodeUrl = "http://symbol-test.next-web-technology.com:3000";
+  const nw = await NetworkScripts.getNetworkStructureFromNode(nodeUrl, NetworkType.TEST_NET);
+  const account = AccountScripts.createRootAccountFromMnemonic(SAMPLE1.MNEMONIC, "password", nw);
+
+
+
+
+});
+
+// 定期的にレスポンスを返し、一定時間後に止める事は可能か
+const epoch = (f: Function) => {
+  setInterval(() => {
+    console.log("epoch");
+    f("ping");
+  }, 1000)
+}
+
+(async () => {
+  const f = (v: any) => {
+    console.log(v)
+  };
+  const a = epoch(f);
+  console.log(a);
 })();
 
 
